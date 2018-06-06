@@ -1,13 +1,14 @@
 'use strict'
 
 const VERIFICATION_TOKEN = process.env.VERIFICATION_TOKEN;
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+//const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 
 const express = require('express');
 const bodyParser = require('body-parser')
 const router = express.Router();
 
-const request = require('request-promise')
+const { createMessageAdapter } = require('@slack/interactive-messages');
+const slackInteractions = createMessageAdapter(VERIFICATION_TOKEN);
 
 // middleware that is specific to this router
 router.use(bodyParser.urlencoded({
@@ -15,84 +16,22 @@ router.use(bodyParser.urlencoded({
 	type: "application/x-www-form-urlencoded"
 }));
 
+router.use('/', slackInteractions.expressMiddleware());
 
-// define the home page route
-router.post('/', function(req, res) {
-	let json = JSON.parse(req.body.payload);
+//3つのボタンから1つを選んだ場合の処理
+slackInteractions.action('approval_process', (payload, respond) => {
+     respond({
+     	text: payload.actions[0].value + "の回答ありがとうございます。"
+     });
+});
 
-	const verificationToken = json.token;
-	if(verificationToken != VERIFICATION_TOKEN) {
-		res.status(401);
-		res.send("Invalid Request.");
-		return;
-	} 
-
-	console.log(json);
-	let responseJson = null;
-	switch (json.type) {
-		case "interactive_message":
-			if (json.callback_id == "approval_process") {
-				responseJson = getButtonResponse(json.actions[0].value + "の回答ありがとうございます。");
-			}
-			break;
-		case "dialog_submission":
-			if (json.callback_id == "input_form") {
-				// Do something such as valication
-				postMessage(json.channel.id, "登録ありがとうございます。");
-			}
-			break;
-		case "dialog_cancellation":
-			if (json.callback_id == "input_form") {
-				// Do something such as valication
-			}
-			break;
-		default:
-			break;
-	}
-
-
-
-	res.status(200);
-	if(responseJson != null) {
-		res.set("Content-Type", "application/json")
-		res.send(responseJson);
-	} else {
-		res.end();
-	}
+//DialogでSubmitした場合の処理
+//DialogでCancelした場合(type=dialog_cancellation)のハンドラーが現行SDKのバージョンだと書けない模様（Cancelすると常に404が返ってしまう）
+slackInteractions.action({ callbackId: 'input_form', type: 'dialog_submission' }, (payload, respond) => {
+     respond({
+     	text: "登録ありがとうございます。"
+     });
 });
 
 module.exports = router;
 
-function getButtonResponse(message) {
-	return {
-		//"type": "interactive_message",
-		"text": message
-	};
-}
-
-function postMessage(channel, text) {
-	const json = {
-		"channel": channel,
-  		"text": text,
-  		"as_user": false
-	};
-
-	var headers = {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Authorization': 'Bearer ' + ACCESS_TOKEN
-    }
-
-    var options = {
-        url: "https://slack.com/api/chat.postMessage",
-        method: 'POST',
-        headers: headers,
-        json: json
-    }
-
-    request(options)
-    .then(function(response) {
-    	//console.log(response);
-    }).catch(function(e) {
-    	console.log(e);
-    });
-}

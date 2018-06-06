@@ -17,8 +17,6 @@ router.use(bodyParser.urlencoded({
 
 // define the home page route
 router.post('/', function(req, res) {
-	//console.log("req.body:" + req.body.toString());
-
 	const verificationToken = req.body.token;
 	const text = req.body.text;
 
@@ -32,9 +30,11 @@ router.post('/', function(req, res) {
 	if (text == "weather") {
 		json = getTextMessage();
 	} else if (text == "dialog") {
-		json = dialogMessage(req.body);
-	} else {
+		json = showDialog(req.body.trigger_id);
+	} else if (text == "button") {
 		json = getButtonMessage();
+	} else {
+		json = {text: text + "は解釈できませんでした。"};
 	}
 
 	res.status(200);
@@ -48,7 +48,9 @@ router.post('/', function(req, res) {
 
 module.exports = router;
 
-
+/**
+ * テキスト形式のメッセージを返す。
+ */
 function getTextMessage() {
 	return {
 		"response_type": "in_channel",	// in_channel or ephemeral
@@ -61,6 +63,11 @@ function getTextMessage() {
 	};
 }
 
+/**
+ * ボタン形式のメッセージを返す。
+ * 
+ * @param {isEphemeral} trueにすると自分にしか見えないメッセージ。
+ */
 function getButtonMessage(isEphemeral = true) {
 	return {
 		"response_type": (isEphemeral? "ephemeral":"in_channel"),	
@@ -100,16 +107,17 @@ function getButtonMessage(isEphemeral = true) {
 	};
 }
 
-function dialogMessage(body) {
-	const triggerId = body.trigger_id;
-	const token = body.token;
+/**
+ * Dialog（入力フォーム）を表示する。
+ */
+function showDialog(triggerId) {
 
 	const json = {
 		"trigger_id": triggerId,
   		"dialog": {
 	    	"callback_id": "input_form",
 	    	"title": "Request a Ride",
-	    	"submit_label": "Request",
+	    	"submit_label": "Submit",
 	    	"notify_on_cancel": true,
 	    	"elements": [
 	        	{
@@ -125,7 +133,6 @@ function dialogMessage(body) {
 	    	]
   		}
 	};
-
 
 	var headers = {
         'Content-Type': 'application/json; charset=UTF-8',
